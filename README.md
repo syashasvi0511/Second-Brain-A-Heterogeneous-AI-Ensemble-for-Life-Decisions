@@ -1,2 +1,3 @@
-# Second-Brain-A-Heterogeneous-AI-Ensemble-for-Life-Decisions
-A heterogeneous ML ensemble (RF, GB, DNN, Confidence Scorer) and LLaMA 3.3 engine transforming career paralysis into constraint-aware, probabilistic life path simulations. 
+# 🧠 Second Brain (Python & JavaScript)
+📌 What This Project Does
+This project is an AI-powered Life Decision Simulator built to help recent graduates and young adults beat "career choice paralysis."
