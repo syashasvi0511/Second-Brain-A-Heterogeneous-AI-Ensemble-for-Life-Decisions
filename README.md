@@ -20,4 +20,14 @@ Instead of relying completely on a single algorithm, we created a heterogeneous 
 
 📊 Results
 
+We validated our AI performance using standard matrics (RMSE and R2 score). We ran 50 simulations (Monte Carlo Variance) for every career path and found out the best case and worst case scenarios to show risk and here are our scores:
+1. Prediction accuracy - Our ensemble got an R2 of 0.80 and RMSE of 0.64 which shows that it reliably indentifies patterns.
+2. Risk mapping - It marks stable paths (like bootcamps) and risky paths (like startup) which helps users see the dangers before going forward.
+3. Safety Guard - Our decision confidence scorer has a very low error rate of 0.18 MAE.
 
+🛠️ Tech Stack
+1. Core modeling stack - Random forest, Gradient Boosting and Multi Output DNN
+2. Explainability pipeline - SHAP (Shapley Additive Explanations) isolates and score the exact weight of each input.
+3. AI Reasoning Layer - Groq LLaMA 3.3 70B
+4. Platform - VSCode
+5. Frontend - HTML, CSS, Javacript
