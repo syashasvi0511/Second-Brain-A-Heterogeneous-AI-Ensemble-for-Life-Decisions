@@ -29,7 +29,7 @@ We validated our AI performance using standard matrics (RMSE and R2 score). We r
 1. Core modeling stack - Random forest, Gradient Boosting and Multi Output DNN
 2. Explainability pipeline - SHAP (Shapley Additive Explanations) isolates and score the exact weight of each input.
 3. AI Reasoning Layer - Groq LLaMA 3.3 70B
-4. Platform - VSCode
+4. Platform - VSCode, Google Colab
 5. Frontend - HTML5 dashboard style with CSS grid layout
 6. API Framework - FastAPI / Flask REST API
 
