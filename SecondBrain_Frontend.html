@@ -1203,6 +1203,21 @@ pendo.initialize({
 const $ = id => document.getElementById(id);
 const sv = (id, v) => $(id).textContent = v;
 
+// Pendo Agent Tracking
+const PENDO_AGENT_ID = '5hXzkgA4aITlO7cuVIowJX6wYRU';
+const _pendoSessionId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'session_' + Date.now();
+let _lastReasoningMsgId = null;
+
+function _pendoMsgId() {
+  return (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : 'msg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+}
+
+function _pendoTrack(eventType, metadata) {
+  if (typeof pendo !== 'undefined' && typeof pendo.trackAgent === 'function') {
+    pendo.trackAgent(eventType, metadata);
+  }
+}
+
 // Path metadata
 const PM = {
   grad_school:   { e:'🎓', l:'Grad School' },
@@ -1301,6 +1316,14 @@ async function runAnalysis() {
   lastProfile = getProfile();  // fresh read every time
   const q = $('userQuestion').value;
 
+  _pendoTrack('prompt', {
+    agentId: PENDO_AGENT_ID,
+    conversationId: _pendoSessionId,
+    messageId: _pendoMsgId(),
+    content: q || 'Analyze My Decision',
+    suggestedPrompt: false
+  });
+
   try {
     const r = await fetch(url+'/predict', {
       method:'POST',
@@ -1311,6 +1334,16 @@ async function runAnalysis() {
     if (!d.success) throw new Error(d.error||'Unknown error');
     lastML = d.ml_results;
     renderResults(lastML);
+
+    _pendoTrack('agent_response', {
+      agentId: PENDO_AGENT_ID,
+      conversationId: _pendoSessionId,
+      messageId: _pendoMsgId(),
+      content: 'Top path: ' + (PM[lastML.top_path]||{l:lastML.top_path}).l + ' (' + lastML.paths[lastML.top_path].composite_score.toFixed(1) + '/10)',
+      modelUsed: 'ML Ensemble (RF+GB+DNN+Confidence)',
+      toolsUsed: ['RandomForest', 'GradientBoosting', 'DNN', 'ConfidenceScorer']
+    });
+
         if (q && q.trim()) setTimeout(() => getAIReasoning(), 300);
   } catch(e) {
     runDemo();
@@ -1724,12 +1757,32 @@ function renderWhatIfFallback() {
 // AI reasoning panel
 async function getAIReasoning() {
   const btn=$('reasoningBtn');
+  const isRetry = btn && (btn.textContent||'').indexOf('Retry') !== -1;
   btn.disabled=true;
   btn.innerHTML='<div class="spin"></div> Asking Groq...';
 
   const url=$('backendUrl').value.trim();
   const profile=lastProfile||getProfile();
   const q=$('userQuestion').value;
+
+  if (isRetry && _lastReasoningMsgId) {
+    _pendoTrack('user_reaction', {
+      agentId: PENDO_AGENT_ID,
+      conversationId: _pendoSessionId,
+      messageId: _lastReasoningMsgId,
+      content: 'retry'
+    });
+  }
+
+  const reasoningPromptMsgId = _pendoMsgId();
+  _lastReasoningMsgId = reasoningPromptMsgId;
+  _pendoTrack('prompt', {
+    agentId: PENDO_AGENT_ID,
+    conversationId: _pendoSessionId,
+    messageId: reasoningPromptMsgId,
+    content: q || 'Get AI Reasoning',
+    suggestedPrompt: !q
+  });
 
   try {
     if(!url) throw new Error('No backend URL set — paste your ngrok URL above.');
@@ -1749,10 +1802,27 @@ async function getAIReasoning() {
     // Fallback if Groq returned plain text
     if(s.raw) {
       $('reasoningInner').innerHTML=`<div class="reasoning-output">${formatMarkdown(s.raw)}</div>`;
+
+      _pendoTrack('agent_response', {
+        agentId: PENDO_AGENT_ID,
+        conversationId: _pendoSessionId,
+        messageId: _pendoMsgId(),
+        content: s.raw.slice(0, 500),
+        modelUsed: d.model_used || 'llama-3.3-70b-versatile'
+      });
       return;
     }
 
     $('reasoningInner').innerHTML = renderStructured(s, d.model_used, d.tokens_out);
+
+    _pendoTrack('agent_response', {
+      agentId: PENDO_AGENT_ID,
+      conversationId: _pendoSessionId,
+      messageId: _pendoMsgId(),
+      content: (s.decision_framing || s.decision_moment || 'AI reasoning complete').slice(0, 500),
+      modelUsed: d.model_used || 'llama-3.3-70b-versatile',
+      toolsUsed: ['GroqLLM', 'ML Ensemble']
+    });
 
   } catch(e) {
     btn.disabled=false;
@@ -1941,6 +2011,15 @@ function runDemo() {
   };
   lastML=mock; lastProfile=getProfile();
   renderResults(mock);
+
+  _pendoTrack('agent_response', {
+    agentId: PENDO_AGENT_ID,
+    conversationId: _pendoSessionId,
+    messageId: _pendoMsgId(),
+    content: 'Top path: ' + (PM[mock.top_path]||{l:mock.top_path}).l + ' (' + mock.paths[mock.top_path].composite_score.toFixed(1) + '/10) [demo mode]',
+    modelUsed: 'demo-local',
+    toolsUsed: []
+  });
 }
 
 window.addEventListener('load',()=>setTimeout(testConnection,800));
