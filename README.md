@@ -14,8 +14,8 @@ To keep it realistic, we built our data from trusted foundations:
 Instead of relying completely on a single algorithm, we created a heterogeneous ensemble:
 1. Random Forest Regressor (30% weight) - To capture sharp, non-linear feature interactions. 
 2. Gradient Boosting (30% weight) - To minimize predictive errors sequentially and to increase accuracy.
-3. Multi-Output deep neural network - To understand how different parts of your life affect each other, instead of looking at them one by one.
-4. Decision Confidence Scorer - To check if a path is actually a good match and to stop the AI from giving a misleading recommendation.
+3. Multi-Output deep neural network (25% weight) - To understand how different parts of your life affect each other, instead of looking at them one by one.
+4. Decision Confidence Scorer (15% weight) - To check if a path is actually a good match and to stop the AI from giving a misleading recommendation.
 5. Groq LLaMa 3.3 70B Layer - A linguistic mmodel that translates cold numbers into actionable data figures and writes an action plan.
 
 📊 Results
@@ -34,6 +34,14 @@ We validated our AI performance using standard matrics (RMSE and R2 score). We r
 6. API Framework - FastAPI / Flask REST API
 
 🚀 How to Run
-1. You need your Groq and Ngrok active API key.
-2. Put the Groq API key in Cell 10 and Ngrok API key in cell 11 (REPLACE_WITH_YOUR_GROQ_API_KEY and REPLACE_WITH_YOUR_NGROK_AUTH_TOKEN)
+1. You must have python version 3.12 or lower (TensorFlow is not available for Python 3.13 yet)
+2. You need your Groq and Ngrok active API key.
+3. Download the SecondBrain_Backend.ipynb file.
+4. Put the Groq API key in Cell 10 and Ngrok API key in cell 11 (REPLACE_WITH_YOUR_GROQ_API_KEY and REPLACE_WITH_YOUR_NGROK_AUTH_TOKEN) of the backend file.
+5. Run the backend file from cell 1 to cell 12b
+6. Run the frontend file and paste the ngrok link (generated in cell 11) into the backend space on site.
+7. You can either load in demo profile or make your own and analyse it.
+
+⚠️ NOTE
+Second Brain is a probabilistic decision simulator built for hackathon, educational, research, and career exploration. It evaluates statistical archetypes from historical datasets and does not guarantee specific life outcomes, nor does it replace professional financial, legal, or psychological counseling.
 
