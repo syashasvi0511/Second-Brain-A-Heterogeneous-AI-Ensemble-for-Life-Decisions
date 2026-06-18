@@ -30,4 +30,10 @@ We validated our AI performance using standard matrics (RMSE and R2 score). We r
 2. Explainability pipeline - SHAP (Shapley Additive Explanations) isolates and score the exact weight of each input.
 3. AI Reasoning Layer - Groq LLaMA 3.3 70B
 4. Platform - VSCode
-5. Frontend - HTML, CSS, Javacript
+5. Frontend - HTML5 dashboard style with CSS grid layout
+6. API Framework - FastAPI / Flask REST API
+
+🚀 How to Run
+1. You need your Groq and Ngrok active API key.
+2. Put the Groq API key in Cell 10 and Ngrok API key in cell 11 (REPLACE_WITH_YOUR_GROQ_API_KEY and REPLACE_WITH_YOUR_NGROK_AUTH_TOKEN)
+
