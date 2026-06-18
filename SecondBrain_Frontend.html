@@ -1248,6 +1248,14 @@ function loadPersona(key) {
   $('mentor_access').checked = p.mentor_access;
   $('userQuestion').value = p.question;
 
+  pendo.track("demo_profile_loaded", {
+    persona_key: key,
+    persona_age: p.age,
+    persona_field: p.field,
+    persona_burnout_level: p.burnout_level,
+    persona_savings_months: p.savings_months
+  });
+
     const btn = document.querySelector('.preset-btn');
   if (btn) {
     const original = btn.innerHTML;
@@ -1276,18 +1284,30 @@ function getProfile() {
 }
 
 // Test API connection
-async function testConnection() {
+async function testConnection(isAutoTest) {
   const url = $('backendUrl').value.trim();
   const dot = $('statusDot'); const txt = $('statusText');
   txt.textContent = 'Connecting...';
+  var urlType = url.includes('ngrok') ? 'ngrok' : (url.includes('localhost') ? 'localhost' : 'other');
   try {
     const r = await fetch(url+'/health', { signal: AbortSignal.timeout(4000), headers:{'ngrok-skip-browser-warning':'true'} });
     const d = await r.json();
     dot.className = 'status-dot online';
     txt.textContent = `Connected — ${d.model||'OK'}`;
+    pendo.track("backend_connection_tested", {
+      connection_success: true,
+      backend_url_type: urlType,
+      is_auto_test: !!isAutoTest,
+      response_model_info: String(d.model || 'OK').substring(0, 100)
+    });
   } catch {
     dot.className = 'status-dot offline';
     txt.textContent = 'Connection failed';
+    pendo.track("backend_connection_tested", {
+      connection_success: false,
+      backend_url_type: urlType,
+      is_auto_test: !!isAutoTest
+    });
   }
 }
 
@@ -1300,6 +1320,7 @@ async function runAnalysis() {
   const url = $('backendUrl').value.trim();
   lastProfile = getProfile();  // fresh read every time
   const q = $('userQuestion').value;
+  let analysisSource = 'backend';
 
   try {
     const r = await fetch(url+'/predict', {
@@ -1313,7 +1334,36 @@ async function runAnalysis() {
     renderResults(lastML);
         if (q && q.trim()) setTimeout(() => getAIReasoning(), 300);
   } catch(e) {
-    runDemo();
+    analysisSource = 'demo_fallback';
+    runDemo('fallback');
+  }
+
+  // Track profile analysis completed
+  if (lastML && lastProfile) {
+    var ranked = lastML.ranked || [];
+    var topPath = lastML.top_path;
+    var topScore = lastML.paths[topPath] ? lastML.paths[topPath].composite_score : 0;
+    var secondScore = ranked.length > 1 && lastML.paths[ranked[1]] ? lastML.paths[ranked[1]].composite_score : 0;
+    pendo.track("profile_analysis_completed", {
+      age: lastProfile.age,
+      gpa: lastProfile.gpa,
+      savings_months: lastProfile.savings_months,
+      risk_tolerance: lastProfile.risk_tolerance,
+      career_clarity: lastProfile.career_clarity,
+      technical_skills: lastProfile.technical_skills,
+      network_strength: lastProfile.network_strength,
+      burnout_level: lastProfile.burnout_level,
+      field: lastProfile.field,
+      family_obligations: lastProfile.family_obligations,
+      location_flexibility: lastProfile.location_flexibility,
+      mentor_access: lastProfile.mentor_access,
+      top_path: topPath,
+      top_path_score: topScore,
+      score_gap_top_two: +(topScore - secondScore).toFixed(2),
+      paths_count: ranked.length,
+      had_user_question: !!(q && q.trim()),
+      source: analysisSource
+    });
   }
 
   btn.disabled = false;
@@ -1689,9 +1739,47 @@ async function runWhatIf(variable, btnEl) {
       body: JSON.stringify({profile, variable, values})
     });
     const d = await r.json();
-    if(d.success) renderWhatIf(d.scenarios, variable, values);
-    else renderWhatIfFallback();
-  } catch { renderWhatIfFallback(); }
+    if(d.success) {
+      renderWhatIf(d.scenarios, variable, values);
+      var topPaths = values.map(function(v) { var s = d.scenarios[String(v)]; return s && s.ranked ? s.ranked[0] : ''; });
+      var uniqueTops = topPaths.filter(function(v, i, a) { return v && a.indexOf(v) === i; });
+      pendo.track("whatif_simulation_completed", {
+        variable: variable,
+        values_tested: values.join(','),
+        used_backend: true,
+        scenarios_count: values.length,
+        top_path_changed: uniqueTops.length > 1,
+        current_field: profile.field,
+        current_risk_tolerance: profile.risk_tolerance,
+        current_savings_months: profile.savings_months
+      });
+    }
+    else {
+      renderWhatIfFallback();
+      pendo.track("whatif_simulation_completed", {
+        variable: variable,
+        values_tested: values.join(','),
+        used_backend: false,
+        scenarios_count: 0,
+        top_path_changed: false,
+        current_field: profile.field,
+        current_risk_tolerance: profile.risk_tolerance,
+        current_savings_months: profile.savings_months
+      });
+    }
+  } catch {
+    renderWhatIfFallback();
+    pendo.track("whatif_simulation_completed", {
+      variable: variable,
+      values_tested: values.join(','),
+      used_backend: false,
+      scenarios_count: 0,
+      top_path_changed: false,
+      current_field: profile.field,
+      current_risk_tolerance: profile.risk_tolerance,
+      current_savings_months: profile.savings_months
+    });
+  }
 }
 
 function renderWhatIf(scenarios, variable, values) {
@@ -1749,10 +1837,32 @@ async function getAIReasoning() {
     // Fallback if Groq returned plain text
     if(s.raw) {
       $('reasoningInner').innerHTML=`<div class="reasoning-output">${formatMarkdown(s.raw)}</div>`;
+      pendo.track("ai_reasoning_completed", {
+        model_used: d.model_used || '',
+        tokens_in: d.tokens_in || 0,
+        tokens_out: d.tokens_out || 0,
+        had_user_question: !!(q && q.trim()),
+        user_question_length: q ? q.trim().length : 0,
+        has_structured_response: false,
+        response_type: "raw_text"
+      });
       return;
     }
 
     $('reasoningInner').innerHTML = renderStructured(s, d.model_used, d.tokens_out);
+    pendo.track("ai_reasoning_completed", {
+      model_used: d.model_used || '',
+      tokens_in: d.tokens_in || 0,
+      tokens_out: d.tokens_out || 0,
+      had_user_question: !!(q && q.trim()),
+      user_question_length: q ? q.trim().length : 0,
+      has_structured_response: true,
+      top_paths_count: s.top_paths ? s.top_paths.length : 0,
+      cognitive_biases_count: s.cognitive_biases ? s.cognitive_biases.length : 0,
+      action_steps_count: s.actionable_next_steps ? s.actionable_next_steps.length : 0,
+      has_clarifying_question: !!s.clarifying_question,
+      response_type: "structured"
+    });
 
   } catch(e) {
     btn.disabled=false;
@@ -1764,6 +1874,12 @@ async function getAIReasoning() {
         <span style="opacity:0.7">Tip: Make sure your Flask backend (Cell 11) is running and the ngrok URL above is current.</span>
         <br><br><button class="reasoning-btn" style="margin-top:4px" onclick="getAIReasoning()">✦ Try Again</button>
       </div>`;
+    pendo.track("ai_reasoning_failed", {
+      error_message: String(e.message).substring(0, 200),
+      had_backend_url: !!url,
+      backend_url_type: url ? (url.includes('ngrok') ? 'ngrok' : (url.includes('localhost') ? 'localhost' : 'other')) : 'none',
+      had_user_question: !!(q && q.trim())
+    });
   }
 }
 
@@ -1841,7 +1957,7 @@ function renderStructured(s, model, tokOut) {
     const items = s.actionable_next_steps.map((step, i) => {
       const cbId = `step_${i}_${Math.random().toString(36).slice(2,7)}`;
       return `<label for="${cbId}" class="action-step">
-        <input type="checkbox" id="${cbId}" class="action-checkbox" onchange="this.parentElement.classList.toggle('done', this.checked)">
+        <input type="checkbox" id="${cbId}" class="action-checkbox" data-step-index="${i}" data-total-steps="${s.actionable_next_steps.length}" onchange="trackActionStep(this)">
         <span class="action-step-text">${step}</span>
       </label>`;
     }).join('');
@@ -1862,8 +1978,21 @@ function renderStructured(s, model, tokOut) {
   return html;
 }
 
+function trackActionStep(cb) {
+  cb.parentElement.classList.toggle('done', cb.checked);
+  var stepText = cb.parentElement.querySelector('.action-step-text');
+  pendo.track("action_step_checked", {
+    step_index: parseInt(cb.dataset.stepIndex, 10),
+    step_text: stepText ? stepText.textContent.substring(0, 100) : '',
+    is_checked: cb.checked,
+    total_steps: parseInt(cb.dataset.totalSteps, 10),
+    steps_completed_count: document.querySelectorAll('.action-checkbox:checked').length,
+    top_path: lastML ? lastML.top_path : ''
+  });
+}
+
 // Demo mode with field-aware mock data
-function runDemo() {
+function runDemo(triggerSource) {
   const field = $('field').value;
 
     const BASE = {
@@ -1941,9 +2070,20 @@ function runDemo() {
   };
   lastML=mock; lastProfile=getProfile();
   renderResults(mock);
+
+  pendo.track("demo_analysis_run", {
+    field: field,
+    top_path: ranked[0],
+    top_path_score: paths[ranked[0]].composite_score,
+    trigger_source: triggerSource || 'button',
+    age: lastProfile.age,
+    risk_tolerance: lastProfile.risk_tolerance,
+    burnout_level: lastProfile.burnout_level,
+    savings_months: lastProfile.savings_months
+  });
 }
 
-window.addEventListener('load',()=>setTimeout(testConnection,800));
+window.addEventListener('load',()=>setTimeout(()=>testConnection(true),800));
 </script>
 </body>
 </html>
